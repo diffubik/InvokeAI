@@ -2,6 +2,7 @@
 ldm.dream.generator.txt2img inherits from ldm.dream.generator
 '''
 
+import os
 import torch
 import numpy as  np
 from ldm.dream.generator.base import Generator
@@ -9,6 +10,7 @@ from ldm.dream.generator.base import Generator
 class Txt2Img(Generator):
     def __init__(self,model):
         super().__init__(model)
+        self.free_gpu_mem = os.environ['FREE_GPU_MEM'] == '1'
     
     @torch.no_grad()
     def get_make_image(self,prompt,sampler,steps,cfg_scale,ddim_eta,
@@ -27,6 +29,10 @@ class Txt2Img(Generator):
                 height // self.downsampling_factor,
                 width  // self.downsampling_factor,
             ]
+
+            if self.free_gpu_mem and self.model.model.device != self.model.device:
+                self.model.model.to(self.model.device)
+
             samples, _ = sampler.sample(
                 batch_size                   = 1,
                 S                            = steps,
@@ -39,6 +45,10 @@ class Txt2Img(Generator):
                 eta                          = ddim_eta,
                 img_callback                 = step_callback
             )
+
+            if self.free_gpu_mem:
+                self.model.model.to("cpu")
+
             return self.sample_to_image(samples)
 
         return make_image
