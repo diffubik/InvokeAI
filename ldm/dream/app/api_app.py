@@ -131,6 +131,7 @@ def invoke_api():
     
     server = uvicorn.Server(config)
     loop.run_until_complete(server.serve())
+    ApiDependencies.invoker.stop()
 
 
 if __name__ == "__main__":

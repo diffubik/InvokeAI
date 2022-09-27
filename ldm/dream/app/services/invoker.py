@@ -1,6 +1,6 @@
 # Copyright (c) 2022 Kyle Schouviller (https://github.com/kyle0654)
 
-from queue import Queue
+from queue import Queue, Empty
 from threading import Event, Thread
 from typing import Dict, List
 
@@ -30,6 +30,7 @@ class Invoker:
     invoker_services: InvokerServices
 
     __invoker_thread: Thread
+    __running: bool
 
     def __init__(self,
         services: InvocationServices,     # Services used by nodes to perform invocations
@@ -37,18 +38,21 @@ class Invoker:
     ):
         self.services = services
         self.invoker_services = invoker_services
+        self.__running = True
         self.__invoker_thread = Thread(
             name = "invoker",
             target = self.__process
         )
         self.__invoker_thread.start()
 
-
     def __process(self):
         try:
-            # TODO: Figure out how to gracefully shut down a thread at exit
-            while True:
-                queue_item: InvocationQueueItem = self.invoker_services.queue.get()
+            while self.__running:
+                try:
+                    queue_item: InvocationQueueItem = self.invoker_services.queue.get(timeout=1)
+                except Empty:
+                    continue
+
                 context = self.invoker_services.context_manager.get(queue_item.context_id)
                 invocation = context.invocations[queue_item.invocation_id]
 
@@ -66,7 +70,9 @@ class Invoker:
                     self.invoke(context, invoke_all = True)
 
         except KeyboardInterrupt:
-            ... # Log something?
+            # Since this loop is running in a thread, queue.get() does not receive any signals
+            # and does not throw KeyboardInterrupt. This branch is never entered in practice.
+            ...
 
 
     def invoke(self, context: InvocationContext, invoke_all: bool = False) -> str:
@@ -105,11 +111,13 @@ class Invoker:
         # Directly create nodes and links, since graph is already validated
         for node in invocation_graph.nodes:
             context.invocations[node.id] = node
-        
         for link in invocation_graph.links:
             if not link.to_node.id in context.links:
                 context.links[link.to_node.id] = list()
-            
             context.links[link.to_node.id].append(InvocationFieldLink(link.from_node.id, link.from_node.field, link.to_node.field))
 
         return context
+
+    def stop(self):
+        self.__running = False
+

@@ -36,8 +36,8 @@ class MemoryInvocationQueue(InvocationQueueABC):
     def __init__(self):
         self.__queue = Queue()
     
-    def get(self) -> InvocationQueueItem:
-        return self.__queue.get()
+    def get(self, timeout) -> InvocationQueueItem:
+        return self.__queue.get(block=True, timeout=timeout)
     
     def put(self, item: InvocationQueueItem) -> None:
         self.__queue.put(item)
